@@ -11,7 +11,7 @@ Tudo isso em uma interface interativa e amigável no terminal.
 
 ---
 
-![Demonstração do sistema](coloque_seu_gif_aqui.gif)
+![Demonstração do sistema](media/transcripter.gif)
 
 ---
 
@@ -64,7 +64,7 @@ OPENAI_API_KEY=coloque_sua_chave_openai_aqui
 
 Ative o ambiente virtual e execute:
 ```bash
-transcripter
+uv run transcripter/main.py
 ```
 
 Siga o menu interativo para gravar, transcrever, analisar e gerenciar suas transcrições.
