@@ -22,6 +22,7 @@ client = Groq()
 console = Console()
 
 
+
 def baixar_youtube(url):
     yt = YouTube(url)
     f = f"{uuid.uuid4()}.wav"
