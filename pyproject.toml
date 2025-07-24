@@ -1,0 +1,29 @@
+[project]
+name = "transcripter"
+version = "0.1.0"
+description = "Transcrição e análise de áudios e vídeos via terminal"
+authors = [{name = "Rodrigo Soares Tadewald", email = "rodrigo.tadewald@gmail.com"}]
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "agno>=1.7.5",
+    "cython>=3.1.2",
+    "ffmpeg-python>=0.2.0",
+    "google-cloud-speech>=2.33.0",
+    "groq>=0.30.0",
+    "ipykernel>=6.30.0",
+    "keyboard>=0.13.5",
+    "openai>=1.97.1",
+    "pyannote-audio>=3.3.2",
+    "pynput>=1.8.1",
+    "python-dotenv>=1.1.1",
+    "pytubefix>=9.4.1",
+    "questionary>=2.1.0",
+    "rich>=14.0.0",
+    "sounddevice>=0.5.2",
+    "soundfile>=0.13.1",
+    "tinydb>=4.8.2",
+]
+
+[project.scripts]
+transcripter = "transcripter.main:main"
