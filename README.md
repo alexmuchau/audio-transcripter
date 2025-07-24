@@ -1,6 +1,13 @@
 # transcripter
 
-Transcripter é um sistema de terminal para transcrição e análise de áudios de reuniões, vídeos do YouTube, microfone e áudio do sistema. Ele permite transcrever, consultar, analisar com IA e gerenciar um histórico de transcrições de forma simples e interativa.
+Transcripter é um sistema de terminal completo para transcrição e análise de áudios e vídeos. Com ele, você pode:
+- Gravar e transcrever áudio do microfone
+- Gravar e transcrever o áudio do sistema (reuniões, vídeos, etc.)
+- Baixar e transcrever o áudio de vídeos do YouTube
+- Consultar e gerenciar um histórico de transcrições
+- Analisar qualquer transcrição com IA conversacional (chat com contexto)
+- Deletar transcrições específicas
+Tudo isso em uma interface interativa e amigável no terminal.
 
 ---
 
@@ -12,7 +19,7 @@ Transcripter é um sistema de terminal para transcrição e análise de áudios 
 
 ### 1. Clone o projeto e entre na pasta
 ```bash
-git clone https://github.com/seuusuario/transcripter.git
+git clone https://github.com/rtadewald/transcripter.git
 cd transcripter
 ```
 
@@ -39,9 +46,17 @@ uv pip install -e .
 - **Windows:**
   Use [VB-Cable](https://vb-audio.com/Cable/) ou [VoiceMeeter](https://vb-audio.com/Voicemeeter/) para criar um dispositivo de áudio virtual e roteie o áudio do sistema para ele.
 
-### 5. Outras dependências
+### 5. Crie o arquivo `.env` com suas chaves de API
+Crie um arquivo chamado `.env` na raiz do projeto com o seguinte conteúdo:
+```
+GROQ_API_KEY=coloque_sua_chave_groq_aqui
+OPENAI_API_KEY=coloque_sua_chave_openai_aqui
+```
+- `GROQ_API_KEY`: Necessária para transcrição com Whisper (Groq)
+- `OPENAI_API_KEY`: Necessária para análise com IA (agente conversacional)
+
+### 6. Outras dependências
 - Python 3.8+
-- API Key do Groq (adicione no seu .env como `GROQ_API_KEY=...`)
 
 ---
 
