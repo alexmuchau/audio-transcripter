@@ -1,4 +1,4 @@
-import os, tempfile, uuid
+import os, tempfile, uuid, platform, subprocess, time
 from datetime import datetime
 from tinydb import TinyDB
 from groq import Groq
@@ -45,24 +45,69 @@ def gravar_audio(msg):
     return f
 
 def gravar_tela():
-    print("Gravando áudio do sistema (BlackHole)... pressione Ctrl+C para pausar.")
-    import subprocess, time
-    audio = tempfile.mktemp(suffix=".wav")
-    cmd = [
-        'ffmpeg', '-f', 'avfoundation', '-i', ':1', '-ac', '1', '-ar', '48000', '-y', audio
-    ]
+    """
+    Grava o áudio do sistema.
+    Esta função agora detecta o sistema operacional e usa o método apropriado
+    para capturar o áudio de saída do sistema (desktop).
+    """
+    system = platform.system()
+    audio_temp_file = tempfile.mktemp(suffix=".wav")
+    cmd = []
+
+    if system == "Darwin":
+        print("Gravando áudio do sistema (macOS / BlackHole)... Pressione Ctrl+C para pausar.")
+        # Comando para macOS usando AVFoundation, assumindo que BlackHole é o dispositivo de entrada :1
+        cmd = [
+            'ffmpeg', '-f', 'avfoundation', '-i', ':1', '-ac', '1', 
+            '-ar', '48000', '-y', audio_temp_file
+        ]
+    elif system == "Linux":
+        print("Gravando áudio do sistema (Linux / PulseAudio)... Pressione Ctrl+C para pausar.")
+        monitor_source = None
+        try:
+            # Tenta encontrar a fonte de monitor da saída de áudio padrão dinamicamente
+            default_sink = subprocess.check_output(["pactl", "get-default-sink"], text=True).strip()
+            monitor_source = f"{default_sink}.monitor"
+            console.print(f"[green]Dispositivo de áudio detectado:[/green] {monitor_source}")
+        except (FileNotFoundError, subprocess.CalledProcessError) as e:
+            console.print("[yellow]Aviso: Não foi possível detectar o dispositivo de áudio padrão com 'pactl'.[/yellow]")
+            console.print("[yellow]Certifique-se de que 'pulseaudio-utils' está instalado (`sudo apt install pulseaudio-utils`).[/yellow]")
+            console.print("[yellow]Tentando usar 'default.monitor' como fallback...[/yellow]")
+            # Se `pactl` falhar, podemos tentar um nome genérico, embora menos confiável.
+            monitor_source = "default.monitor" 
+
+        cmd = [
+            'ffmpeg', '-f', 'pulse', '-i', monitor_source, '-ac', '1', 
+            '-ar', '48000', '-y', audio_temp_file
+        ]
+    else:
+        console.print(f"[bold red]ERRO: A gravação de tela não é suportada neste sistema operacional ({system}).[/bold red]")
+        return None
+
+    # O processo de execução do ffmpeg é o mesmo para ambos os sistemas
     proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     try:
+        # Espera o processo do ffmpeg terminar. O usuário interrompe com Ctrl+C.
         proc.wait()
     except KeyboardInterrupt:
         print("\nGravação interrompida pelo usuário.")
-        proc.terminate()
-        proc.wait()
-    try:
-        time.sleep(0.2)
-    except KeyboardInterrupt:
-        pass
-    return audio
+        proc.terminate() # Envia o sinal de término para o ffmpeg
+        
+        # Espera um pouco para garantir que o processo realmente terminou e liberou o arquivo
+        try:
+            proc.wait(timeout=1)
+        except subprocess.TimeoutExpired:
+            proc.kill() # Força o encerramento se não terminar a tempo
+
+    # Pequena pausa para garantir que o arquivo foi completamente escrito no disco
+    time.sleep(0.5) 
+    
+    # Verifica se o arquivo foi criado e não está vazio
+    if os.path.exists(audio_temp_file) and os.path.getsize(audio_temp_file) > 0:
+        return audio_temp_file
+    else:
+        console.print("[bold red]Falha na gravação. O arquivo de áudio não foi criado ou está vazio.[/bold red]")
+        return None
 
 def transcrever(audio_path):
     print("Enviando áudio para transcrição, aguarde...")
@@ -83,14 +128,21 @@ def transcrever(audio_path):
     except KeyboardInterrupt:
         print("\nTranscrição interrompida pelo usuário.")
         return ""
+    except Exception as e:
+        console.print(f"[bold red]Ocorreu um erro durante a transcrição: {e}[/bold red]")
+        return ""
 
 def salvar_transcricao(origem, titulo, texto):
+    if not texto:
+        console.print("[yellow]Nenhum texto para salvar.[/yellow]")
+        return
     db.insert({
         "origem": origem,
         "titulo": titulo,
         "texto": texto,
         "data": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     })
+    console.print("[green]Transcrição salva com sucesso![/green]")
 
 def ver_historico():
     table = Table(title="Histórico de Transcrições")
@@ -147,13 +199,10 @@ def chat_ia(transcricao):
             input("Pressione ENTER para voltar.")
             break
         
-        # prompt = f"""\n\nContexto da transcrição:\n" + transcricao + "\n\n" + {pergunta}"""
-        # memory_agent.print_response(pergunta, stream=True)
         response = memory_agent.run(pergunta, stream=True)
         for msg in response:
             print(msg.content, end="", flush=True)
         print("\n")
-        # console.print(f"[bold blue]IA:[/bold blue] {resposta.content if hasattr(resposta, 'content') else resposta}")
 
 def analise_transcricoes():
     while True:
@@ -214,6 +263,8 @@ def main():
                 "3. Sair"
             ]).ask()
         
+        audio, texto, titulo, nome, origem = (None, "", "", "", "")
+
         if escolha.startswith("1."):
             console.clear()
             fonte = questionary.select(
@@ -223,26 +274,35 @@ def main():
             if fonte.startswith("1."):
                 url = questionary.text("URL do vídeo:").ask()
                 audio, titulo = baixar_youtube(url)
-                texto = transcrever(audio)
-                salvar_transcricao("youtube", titulo, texto)
-                os.remove(audio)
+                origem = "youtube"
 
             elif fonte.startswith("2."):
-                audio = gravar_audio("Gravando... Ctrl+C para pausar.")
-                texto = transcrever(audio)
-                nome = texto[:50] + "..." if len(texto) > 50 else texto
-                salvar_transcricao("microfone", nome, texto)
-                os.remove(audio)
+                audio = gravar_audio("Gravando do microfone... Pressione Ctrl+C para pausar.")
+                origem = "microfone"
 
             elif fonte.startswith("3."):
                 audio = gravar_tela()
-                texto = transcrever(audio)
-                nome = texto[:50] + "..." if len(texto) > 50 else texto
-                salvar_transcricao("tela", nome, texto)
-                os.remove(audio)
+                origem = "tela"
 
             else:
                 continue
+
+            # Processamento unificado após a captura do áudio
+            if audio:
+                texto = transcrever(audio)
+                if texto:
+                    if origem in ["microfone", "tela"]:
+                        nome = texto[:50] + "..." if len(texto) > 50 else texto
+                        salvar_transcricao(origem, nome, texto)
+                    elif origem == "youtube":
+                        salvar_transcricao(origem, titulo, texto)
+                
+                # Limpa o arquivo de áudio temporário
+                os.remove(audio)
+            else:
+                console.print("[yellow]Nenhum áudio foi gravado para processar.[/yellow]")
+                input("Pressione ENTER para continuar...")
+
 
         elif escolha.startswith("2."):
             analise_transcricoes()
